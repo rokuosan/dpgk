@@ -1,0 +1,104 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - os: linux
+            arch: amd64
+            ext: ""
+            artifact: dpgk-linux-amd64
+          - os: linux
+            arch: arm64
+            ext: ""
+            artifact: dpgk-linux-arm64
+          - os: darwin
+            arch: amd64
+            ext: ""
+            artifact: dpgk-darwin-amd64
+          - os: darwin
+            arch: arm64
+            ext: ""
+            artifact: dpgk-darwin-arm64
+          - os: windows
+            arch: amd64
+            ext: .exe
+            artifact: dpgk-windows-amd64.exe
+          - os: windows
+            arch: arm64
+            ext: .exe
+            artifact: dpgk-windows-arm64.exe
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Build
+        run: |
+          GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build \
+            -ldflags="-s -w" \
+            -o ${{ matrix.artifact }} .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Compute checksums
+        run: |
+          cd artifacts
+          find . -type f | sort | while read f; do
+            sha256sum "$f" >> ../checksums.txt
+          done
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: dpgk ${{ github.ref_name }}
+          body: |
+            ## dpgk ${{ github.ref_name }}
+
+            See [README](https://github.com/shibadogcap/dpgk#readme) for usage.
+
+            ### Downloads
+
+            | Platform | Architecture | Binary |
+            |----------|-------------|--------|
+            | Linux | amd64 | [dpgk-linux-amd64] |
+            | Linux | arm64 | [dpgk-linux-arm64] |
+            | macOS (Intel) | amd64 | [dpgk-darwin-amd64] |
+            | macOS (Apple Silicon) | arm64 | [dpgk-darwin-arm64] |
+            | Windows | amd64 | [dpgk-windows-amd64.exe] |
+            | Windows | arm64 | [dpgk-windows-arm64.exe] |
+          files: |
+            artifacts/*/*
+            checksums.txt
