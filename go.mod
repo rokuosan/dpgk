@@ -1,4 +1,4 @@
-module github.com/your/dpgk
+module github.com/shibadogcap/dpgk
 
 go 1.24.0
 
